@@ -1,6 +1,8 @@
 import streamlit as st
 import tempfile
 import os
+import zipfile
+import io
 from markitdown import MarkItDown
 
 # Must be the first Streamlit command
@@ -95,6 +97,8 @@ if uploaded_files:
     if st.button("Convert to Markdown", type="primary"):
         md = MarkItDown()
         
+        successful_conversions = []
+        
         # Process each file
         for i, uploaded_file in enumerate(uploaded_files):
             file_extension = os.path.splitext(uploaded_file.name)[1]
@@ -108,6 +112,9 @@ if uploaded_files:
                     result = md.convert(tmp_file_path)
                     
                     if result and result.text_content:
+                        md_filename = f"{os.path.splitext(uploaded_file.name)[0]}.md"
+                        successful_conversions.append((md_filename, result.text_content))
+                        
                         # Display result in a styled container
                         st.markdown(f'<div class="result-card"><h3>✅ {uploaded_file.name}</h3></div>', unsafe_allow_html=True)
                         
@@ -115,9 +122,9 @@ if uploaded_files:
                             st.text_area("Markdown Output", result.text_content, height=200, key=f"text_{i}")
                             
                         st.download_button(
-                            label=f"Download {uploaded_file.name}.md",
+                            label=f"Download {md_filename}",
                             data=result.text_content,
-                            file_name=f"{os.path.splitext(uploaded_file.name)[0]}.md",
+                            file_name=md_filename,
                             mime="text/markdown",
                             key=f"dl_{i}" # Unique key for multiple buttons
                         )
@@ -129,3 +136,21 @@ if uploaded_files:
                 finally:
                     if os.path.exists(tmp_file_path):
                         os.remove(tmp_file_path)
+                        
+        if len(successful_conversions) > 1:
+            st.markdown("---")
+            st.subheader("📦 Download All")
+            
+            zip_buffer = io.BytesIO()
+            with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+                for filename, content in successful_conversions:
+                    zip_file.writestr(filename, content)
+            
+            st.download_button(
+                label="Download All as ZIP",
+                data=zip_buffer.getvalue(),
+                file_name="converted_files.zip",
+                mime="application/zip",
+                type="primary",
+                key="dl_zip_all"
+            )
