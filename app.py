@@ -3,55 +3,129 @@ import tempfile
 import os
 from markitdown import MarkItDown
 
-st.set_page_config(page_title="MarkItDown Converter", page_icon="📝", layout="centered")
+# Must be the first Streamlit command
+st.set_page_config(page_title="Notion-style Converter", page_icon="📝", layout="centered")
 
-st.title("📝 File to Markdown Converter")
-st.markdown("Convert various files (PDF, Word, Excel, PowerPoint, HTML, Images, Audio, etc.) to Markdown using [Microsoft's MarkItDown](https://github.com/microsoft/markitdown).")
+# Notion Design System CSS Injection
+def inject_custom_css():
+    st.markdown("""
+    <style>
+    /* Import Inter font */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
 
-uploaded_file = st.file_uploader("Upload a file to convert", type=None)
+    /* Global styles */
+    html, body, [class*="css"] {
+        font-family: 'Inter', sans-serif;
+    }
 
-if uploaded_file is not None:
-    # Save the uploaded file to a temporary location
-    file_extension = os.path.splitext(uploaded_file.name)[1]
-    with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as tmp_file:
-        tmp_file.write(uploaded_file.getvalue())
-        tmp_file_path = tmp_file.name
+    /* Change primary button color to Notion purple */
+    .stButton > button[kind="primary"] {
+        background-color: #5645d4;
+        color: white;
+        border: none;
+        border-radius: 8px;
+    }
+    .stButton > button[kind="primary"]:hover {
+        background-color: #4534b3;
+    }
     
-    st.info(f"File uploaded: {uploaded_file.name}")
+    /* Change secondary button styling */
+    .stButton > button[kind="secondary"] {
+        border-radius: 8px;
+        border: 1px solid #c8c4be;
+    }
+    
+    /* Hero section styling hack using st.markdown container */
+    .hero-container {
+        background-color: #0a1530;
+        color: white;
+        padding: 40px;
+        border-radius: 12px;
+        text-align: center;
+        margin-bottom: 30px;
+    }
+    .hero-container h1 {
+        color: white;
+        font-weight: 600;
+        font-size: 3rem;
+        margin-bottom: 10px;
+    }
+    .hero-container p {
+        color: #a4a097;
+        font-size: 1.1rem;
+    }
+    
+    /* Result card styling */
+    .result-card {
+        background-color: #f6f5f4;
+        padding: 15px;
+        border-radius: 12px;
+        border: 1px solid #e5e3df;
+        margin-bottom: 15px;
+        color: #1a1a1a;
+    }
+    .result-card h3 {
+        margin: 0;
+        font-size: 1.1rem;
+        color: #37352f;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+inject_custom_css()
+
+# Hero Section
+st.markdown("""
+<div class="hero-container">
+    <h1>Meet the night shift.</h1>
+    <p>Convert your PDFs, Office documents, and images to clean Markdown instantly.</p>
+</div>
+""", unsafe_allow_html=True)
+
+# File Uploader (Supports Drag & Drop natively, accept_multiple_files for multiple files)
+uploaded_files = st.file_uploader(
+    "Upload files to convert", 
+    accept_multiple_files=True,
+    help="Drag and drop your files here."
+)
+
+if uploaded_files:
+    st.info(f"{len(uploaded_files)} file(s) selected.")
     
     if st.button("Convert to Markdown", type="primary"):
-        with st.spinner("Converting... Please wait."):
-            try:
-                # Initialize MarkItDown converter
-                md = MarkItDown()
-                
-                # Perform conversion
-                result = md.convert(tmp_file_path)
-                
-                if result and result.text_content:
-                    st.success("Conversion successful!")
+        md = MarkItDown()
+        
+        # Process each file
+        for i, uploaded_file in enumerate(uploaded_files):
+            file_extension = os.path.splitext(uploaded_file.name)[1]
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as tmp_file:
+                tmp_file.write(uploaded_file.getvalue())
+                tmp_file_path = tmp_file.name
+            
+            with st.spinner(f"Converting {uploaded_file.name}..."):
+                try:
+                    result = md.convert(tmp_file_path)
                     
-                    st.subheader("Preview")
-                    st.markdown(result.text_content)
-                    
-                    st.subheader("Raw Markdown")
-                    st.text_area("Markdown Output", result.text_content, height=300)
-                    
-                    st.download_button(
-                        label="Download Markdown File",
-                        data=result.text_content,
-                        file_name=f"{os.path.splitext(uploaded_file.name)[0]}.md",
-                        mime="text/markdown"
-                    )
-                else:
-                    st.warning("Conversion completed but no text content was extracted.")
-                    
-            except Exception as e:
-                st.error(f"Error during conversion: {e}")
-            finally:
-                # Clean up the temporary file
-                if os.path.exists(tmp_file_path):
-                    os.remove(tmp_file_path)
-
-st.markdown("---")
-st.caption("Powered by [Streamlit](https://streamlit.io/) & [Microsoft MarkItDown](https://github.com/microsoft/markitdown)")
+                    if result and result.text_content:
+                        # Display result in a styled container
+                        st.markdown(f'<div class="result-card"><h3>✅ {uploaded_file.name}</h3></div>', unsafe_allow_html=True)
+                        
+                        with st.expander(f"Preview: {uploaded_file.name}"):
+                            st.text_area("Markdown Output", result.text_content, height=200, key=f"text_{i}")
+                            
+                        st.download_button(
+                            label=f"Download {uploaded_file.name}.md",
+                            data=result.text_content,
+                            file_name=f"{os.path.splitext(uploaded_file.name)[0]}.md",
+                            mime="text/markdown",
+                            key=f"dl_{i}" # Unique key for multiple buttons
+                        )
+                    else:
+                        st.warning(f"Conversion completed for {uploaded_file.name} but no text content was extracted.")
+                        
+                except Exception as e:
+                    st.error(f"Error converting {uploaded_file.name}: {e}")
+                finally:
+                    if os.path.exists(tmp_file_path):
+                        os.remove(tmp_file_path)
