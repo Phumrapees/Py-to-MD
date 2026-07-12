@@ -84,14 +84,25 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+if "uploader_key" not in st.session_state:
+    st.session_state.uploader_key = 0
+
+top_actions = st.empty()
+
 # File Uploader (Supports Drag & Drop natively, accept_multiple_files for multiple files)
 uploaded_files = st.file_uploader(
     "Upload files to convert", 
     accept_multiple_files=True,
-    help="Drag and drop your files here."
+    help="Drag and drop your files here.",
+    key=str(st.session_state.uploader_key)
 )
 
 if uploaded_files:
+    with top_actions.container():
+        if st.button("🗑️ Clear Data", key="clear_btn"):
+            st.session_state.uploader_key += 1
+            st.rerun()
+
     st.info(f"{len(uploaded_files)} file(s) selected.")
     
     if st.button("Convert to Markdown", type="primary"):
@@ -138,19 +149,24 @@ if uploaded_files:
                         os.remove(tmp_file_path)
                         
         if len(successful_conversions) > 1:
-            st.markdown("---")
-            st.subheader("📦 Download All")
-            
             zip_buffer = io.BytesIO()
             with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
                 for filename, content in successful_conversions:
                     zip_file.writestr(filename, content)
             
-            st.download_button(
-                label="Download All as ZIP",
-                data=zip_buffer.getvalue(),
-                file_name="converted_files.zip",
-                mime="application/zip",
-                type="primary",
-                key="dl_zip_all"
-            )
+            # Update top actions with ZIP download alongside Clear Data
+            with top_actions.container():
+                col1, col2 = st.columns([1, 1])
+                with col1:
+                    if st.button("🗑️ Clear Data", key="clear_btn_after"):
+                        st.session_state.uploader_key += 1
+                        st.rerun()
+                with col2:
+                    st.download_button(
+                        label="📦 Download All as ZIP",
+                        data=zip_buffer.getvalue(),
+                        file_name="converted_files.zip",
+                        mime="application/zip",
+                        type="primary",
+                        key="dl_zip_all"
+                    )
