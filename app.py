@@ -20,6 +20,11 @@ def inject_custom_css():
         font-family: 'Inter', sans-serif;
     }
 
+    /* Hide Streamlit Branding */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+
     /* Change primary button color to Notion purple */
     .stButton > button[kind="primary"] {
         background-color: #5645d4;
@@ -99,18 +104,21 @@ uploaded_files = st.file_uploader(
 
 if uploaded_files:
     with top_actions.container():
-        if st.button("🗑️ Clear Data", key="clear_btn"):
+        if st.button("🗑️ Clear Data", key="clear_btn", use_container_width=True):
             st.session_state.uploader_key += 1
             st.rerun()
 
-    st.info(f"{len(uploaded_files)} file(s) selected.")
+    st.info(f"📂 {len(uploaded_files)} file(s) selected and ready for conversion.")
     
-    if st.button("Convert to Markdown", type="primary"):
+    if st.button("✨ Convert to Markdown", type="primary", use_container_width=True):
         md = MarkItDown()
         
         successful_conversions = []
         
         # Process each file
+        progress_text = "Conversion in progress. Please wait."
+        my_bar = st.progress(0, text=progress_text)
+        
         for i, uploaded_file in enumerate(uploaded_files):
             file_extension = os.path.splitext(uploaded_file.name)[1]
             
@@ -118,35 +126,40 @@ if uploaded_files:
                 tmp_file.write(uploaded_file.getvalue())
                 tmp_file_path = tmp_file.name
             
-            with st.spinner(f"Converting {uploaded_file.name}..."):
-                try:
-                    result = md.convert(tmp_file_path)
+            try:
+                result = md.convert(tmp_file_path)
+                
+                if result and result.text_content:
+                    md_filename = f"{os.path.splitext(uploaded_file.name)[0]}.md"
+                    successful_conversions.append((md_filename, result.text_content))
                     
-                    if result and result.text_content:
-                        md_filename = f"{os.path.splitext(uploaded_file.name)[0]}.md"
-                        successful_conversions.append((md_filename, result.text_content))
+                    # Display result in a styled container
+                    st.markdown(f'<div class="result-card"><h3>✅ {uploaded_file.name}</h3></div>', unsafe_allow_html=True)
+                    
+                    with st.expander(f"Preview: {uploaded_file.name}"):
+                        st.text_area("Markdown Output", result.text_content, height=200, key=f"text_{i}")
                         
-                        # Display result in a styled container
-                        st.markdown(f'<div class="result-card"><h3>✅ {uploaded_file.name}</h3></div>', unsafe_allow_html=True)
-                        
-                        with st.expander(f"Preview: {uploaded_file.name}"):
-                            st.text_area("Markdown Output", result.text_content, height=200, key=f"text_{i}")
-                            
-                        st.download_button(
-                            label=f"Download {md_filename}",
-                            data=result.text_content,
-                            file_name=md_filename,
-                            mime="text/markdown",
-                            key=f"dl_{i}" # Unique key for multiple buttons
-                        )
-                    else:
-                        st.warning(f"Conversion completed for {uploaded_file.name} but no text content was extracted.")
-                        
-                except Exception as e:
-                    st.error(f"Error converting {uploaded_file.name}: {e}")
-                finally:
-                    if os.path.exists(tmp_file_path):
-                        os.remove(tmp_file_path)
+                    st.download_button(
+                        label=f"⬇️ Download {md_filename}",
+                        data=result.text_content,
+                        file_name=md_filename,
+                        mime="text/markdown",
+                        key=f"dl_{i}",
+                        use_container_width=True
+                    )
+                else:
+                    st.warning(f"⚠️ Conversion completed for {uploaded_file.name} but no text content was extracted.")
+                    
+            except Exception as e:
+                st.error(f"❌ Error converting {uploaded_file.name}: {e}")
+            finally:
+                if os.path.exists(tmp_file_path):
+                    os.remove(tmp_file_path)
+                    
+            # Update progress
+            my_bar.progress((i + 1) / len(uploaded_files), text=f"Converted {i+1} of {len(uploaded_files)} files")
+            
+        my_bar.empty()
                         
         if len(successful_conversions) > 1:
             zip_buffer = io.BytesIO()
@@ -156,9 +169,9 @@ if uploaded_files:
             
             # Update top actions with ZIP download alongside Clear Data
             with top_actions.container():
-                col1, col2 = st.columns([1, 1])
+                col1, col2 = st.columns(2)
                 with col1:
-                    if st.button("🗑️ Clear Data", key="clear_btn_after"):
+                    if st.button("🗑️ Clear Data", key="clear_btn_after", use_container_width=True):
                         st.session_state.uploader_key += 1
                         st.rerun()
                 with col2:
@@ -168,5 +181,6 @@ if uploaded_files:
                         file_name="converted_files.zip",
                         mime="application/zip",
                         type="primary",
-                        key="dl_zip_all"
+                        key="dl_zip_all",
+                        use_container_width=True
                     )
